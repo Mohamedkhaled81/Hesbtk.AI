@@ -12,7 +12,8 @@
 
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
-
+    "rootDir": "./src",
+    "outDir": "./dist",
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "paths": {
@@ -29,6 +30,7 @@
     "forceConsistentCasingInFileNames": true,
 
     "incremental": true,
+    "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo",
 
     "types": ["node"]
   },
