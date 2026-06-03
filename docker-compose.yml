@@ -10,6 +10,7 @@ services:
       - REDIS_URL=${REDIS_URL}
       - JWT_SECRET=${JWT_SECRET}
     volumes:
+      - ./logs:/app/logs
       - ./src:/app/src
       - ./prisma:/app/prisma
       - /app/node_modules

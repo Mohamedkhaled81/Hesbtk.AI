@@ -7,8 +7,6 @@ export class AppService {
 
   getHello(): string {
     // 2. Log your custom message! (Using .log() translates to .info() in Pino)
-    this.logger.log('The getHello method was executed!');
-    
     return 'Hello World!';
   }
 }
