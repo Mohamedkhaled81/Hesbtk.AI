@@ -1,41 +1,70 @@
+version: "3.9"
+
 services:
   app:
     build: .
-    command: sh -c "npx prisma migrate deploy && npm run start:dev"
+    container_name: hesbtk-app
+
+    command: >
+      sh -c "npx prisma migrate deploy --schema=prisma/public.prisma &&
+             npm run prisma:generate &&
+             npm run start:dev"
+
     ports:
       - "${APP_PORT}:3000"
+
     environment:
-      - NODE_ENV=development
-      - DATABASE_URL=${DATABASE_URL}
-      - REDIS_URL=${REDIS_URL}
-      - JWT_SECRET=${JWT_SECRET}
+      NODE_ENV: development
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      JWT_SECRET: ${JWT_SECRET}
+
     volumes:
       - ./logs:/app/logs
-      - ./src:/app/src
       - ./prisma:/app/prisma
-      - /app/node_modules
+      - ./src:/app/src
+
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_started
+      redis:
+        condition: service_started
+
+    restart: unless-stopped
 
   postgres:
     image: pgvector/pgvector:pg16
+    container_name: hesbtk-postgres
+
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: ${POSTGRES_DB:-appdb}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+
     ports:
       - "${POSTGRES_PORT}:5432"
 
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    restart: unless-stopped
+
   redis:
     image: redis:7-alpine
-    command: redis-server --requirepass ${REDIS_PASSWORD:-redispass} --appendonly yes
-    volumes:
-      - redis_data:/data
+    container_name: hesbtk-redis
+
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD}
+      --appendonly yes
+
     ports:
       - "${REDIS_PORT}:6379"
+
+    volumes:
+      - redis_data:/data
+
+    restart: unless-stopped
 
 volumes:
   postgres_data:

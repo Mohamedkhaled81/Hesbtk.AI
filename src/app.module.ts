@@ -1,61 +1,19 @@
-import { Module } from '@nestjs/common';
+import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { ConfigModule } from '@nestjs/config';
-import { DataBaseModule } from './database/database.module';
-import { LoggerModule } from 'nestjs-pino';
-import * as path from 'path';
+import { DatabaseModule } from './database/database.module';
+import { UsersModule } from './modules/users/users.module';
+import { TenantMiddleware } from './common/middleware/tenant.middleware';
+import { AuthModule } from './modules/auth/auth.module';
 
 @Module({
-  imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-    }),
-    LoggerModule.forRoot({
-      pinoHttp: {
-        autoLogging: true,
-        timestamp: () => `,"time":"${new Date().toISOString()}"`,
-        customSuccessMessage: function (req, res) {
-          return `✅ [${req.method}] ${req.url} - Status: ${res.statusCode}`;
-        },
-
-        customErrorMessage: function (req, res, err) {
-          return `❌ [${req.method}] ${req.url} - Failed with error: ${err.message}`;
-        },
-
-        transport: {
-          targets: [
-            process.env.NODE_ENV !== 'production'
-              ? {
-                  target: 'pino-pretty',
-                  options: {
-                    colorize: true,
-                    singleLine: false,
-                    translateTime: 'SYS:yyyy-mm-dd HH:MM:ss',
-                    ignore: 'pid,hostname',
-                    levelFirst: true,
-                  },
-                }
-              : { target: 'pino/file', options: { destination: 1 } },
-            {
-              target: 'pino-roll',
-              options: {
-                file: path.join(
-                  'logs',
-                  `app-${new Date().toISOString().split('T')[0]}.log`,
-                ),
-                size: '10m',
-                frequency: 'daily',
-                mkdir: true,
-              },
-            },
-          ],
-        },
-      },
-    }),
-    DataBaseModule,
-  ],
+  imports: [DatabaseModule, AuthModule, UsersModule],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    // تطبيق الـ Middleware على جميع المسارات بالمشروع، وهو سيتولى فلترة المسارات المستثناة داخلياً
+    consumer.apply(TenantMiddleware).forRoutes('*');
+  }
+}

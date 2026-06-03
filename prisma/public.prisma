@@ -1,0 +1,121 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/@prisma/client-public"
+}
+
+enum Role {
+  OWNER
+  ACCOUNTANT
+  VIEWER
+}
+
+model Organization {
+  id         String   @id @default(uuid()) @db.Uuid
+  name       String   @db.VarChar
+  industry   String   @db.VarChar
+  currency   String   @db.VarChar
+  schemaName String   @unique @map("schema_name") @db.VarChar // اسم السكيما الخاصة بالـ Tenant في الـ DB
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamp
+
+  subscriptions Subscription[]
+  invitations   Invitation[]
+  organizationUsers OrganizationUser[]
+  auditLogs     AuditLog[]
+
+  @@map("organizations")
+}
+
+model Subscription {
+  id                  String       @id @default(uuid()) @db.Uuid
+  organizationId      String       @map("organization_id") @db.Uuid
+  planId              String       @map("plan_id") @db.Uuid
+  status              String       @db.VarChar
+  currentPeriodStart  DateTime     @map("current_period_start") @db.Timestamp
+  currentPeriodEnd    DateTime     @map("current_period_end") @db.Timestamp
+  createdAt           DateTime     @default(now()) @map("created_at") @db.Timestamp
+
+  organization        Organization @relation(fields: [organizationId], references: [id])
+  plan                Plan         @relation(fields: [planId], references: [id])
+
+  @@map("subscriptions")
+}
+
+model Plan {
+  id           String         @id @default(uuid()) @db.Uuid
+  name         String         @db.VarChar
+  price        Decimal        @db.Decimal(10, 2)
+  billingCycle String         @map("billing_cycle") @db.VarChar
+  features     Json           @db.JsonB
+  isActive     Boolean        @default(true) @map("is_active")
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamp
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
+model User {
+  id               String             @id @default(uuid()) @db.Uuid
+  fullName         String             @map("full_name") @db.VarChar
+  email            String             @unique @db.VarChar
+  passwordHash     String             @map("password_hash") @db.VarChar
+  createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamp
+  organizationUsers OrganizationUser[]
+  invitations      Invitation[]
+  auditLogs        AuditLog[]
+
+  @@map("users")
+}
+
+model OrganizationUser {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  userId         String       @map("user_id") @db.Uuid
+  role           Role         @default(VIEWER)
+  isActive       Boolean      @default(true) @map("is_active")
+  invitedBy      String?      @map("invited_by") @db.Uuid
+  joinedAt       DateTime?    @map("joined_at") @db.Timestamp
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamp
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  user           User         @relation(fields: [userId], references: [id])
+
+  @@map("organization_users")
+}
+
+model Invitation {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  email          String       @db.VarChar
+  role           String       @db.VarChar
+  token          String       @unique @db.VarChar
+  invitedBy      String       @map("invited_by") @db.Uuid
+  expiresAt      DateTime     @map("expires_at") @db.Timestamp
+  acceptedAt     DateTime?    @map("accepted_at") @db.Timestamp
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamp
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  user           User         @relation(fields: [invitedBy], references: [id])
+
+  @@map("invitations")
+}
+
+model AuditLog {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  userId         String       @map("user_id") @db.Uuid
+  action         String       @db.VarChar
+  entityType     String       @map("entity_type") @db.VarChar
+  entityId       String       @map("entity_id") @db.Uuid
+  metadata       Json         @db.JsonB
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamp
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  user           User         @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}

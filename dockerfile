@@ -1,16 +1,18 @@
 FROM node:20-alpine
 
+RUN apk add --no-cache openssl
+
 WORKDIR /app
 
-# Install dependencies
 COPY package.json package-lock.json* ./
-RUN npm ci
 
-# Copy application files
+RUN npm install
+
 COPY . .
 
-# Generate Prisma client and build application
-RUN npx prisma generate
+RUN npm run prisma:generate
 RUN npm run build
 
 EXPOSE 3000
+
+CMD ["node", "dist/main"]

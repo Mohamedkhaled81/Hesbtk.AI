@@ -1,0 +1,244 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/@prisma/client-tenant"
+}
+
+model Account {
+  id        String   @id @default(uuid()) @db.Uuid
+  parentId  String?  @map("parent_id") @db.Uuid
+  code      String   @db.VarChar
+  name      String   @db.VarChar
+  type      String   @db.VarChar
+  isLeaf    Boolean  @default(true) @map("is_leaf")
+  level     Int      @default(1)
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp
+
+  parent       Account?      @relation("AccountToAccount", fields: [parentId], references: [id])
+  children     Account[]     @relation("AccountToAccount")
+  bankAccounts BankAccount[]
+  journalLines JournalLine[]
+
+  @@map("accounts")
+}
+
+model Customer {
+  id           String            @id @default(uuid()) @db.Uuid
+  name         String            @db.VarChar
+  email        String?           @db.VarChar
+  phone        String?           @db.VarChar
+  address      String?           @db.Text
+  paymentTerms Int?              @map("payment_terms")
+  currency     String?           @db.VarChar
+  isActive     Boolean           @default(true) @map("is_active")
+  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamp
+  createdBy    String            @map("created_by") @db.Uuid
+  invoices     Invoice[]
+  payments     CustomerPayment[]
+
+  @@map("customers")
+}
+
+model Vendor {
+  id           String          @id @default(uuid()) @db.Uuid
+  name         String          @db.VarChar
+  email        String?         @db.VarChar
+  phone        String?         @db.VarChar
+  address      String?         @db.Text
+  paymentTerms Int?            @map("payment_terms")
+  isActive     Boolean         @default(true) @map("is_active")
+  createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamp
+  createdBy    String          @map("created_by") @db.Uuid
+  vendorBills  VendorBill[]
+  vendorPayments VendorPayment[]
+
+  @@map("vendors")
+}
+
+model BankAccount {
+  id            String            @id @default(uuid()) @db.Uuid
+  name          String            @db.VarChar
+  accountNumber String?           @map("account_number") @db.VarChar
+  bankName      String?           @map("bank_name") @db.VarChar
+  currency      String            @db.VarChar
+  glAccountId   String            @map("gl_account_id") @db.Uuid
+  isActive      Boolean           @default(true) @map("is_active")
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamp
+  account       Account           @relation(fields: [glAccountId], references: [id])
+  customerPayments CustomerPayment[]
+  vendorPayments   VendorPayment[]
+
+  @@map("bank_accounts")
+}
+
+model JournalEntry {
+  id            String        @id @default(uuid()) @db.Uuid
+  date          DateTime      @db.Date
+  description   String        @db.Text
+  status        String        @db.VarChar
+  referenceType String?       @map("reference_type") @db.VarChar
+  referenceId   String?       @map("reference_id") @db.Uuid
+  createdBy     String        @map("created_by") @db.Uuid
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamp
+  lines         JournalLine[]
+  invoices      Invoice[]
+  customerPayments CustomerPayment[]
+  vendorBills   VendorBill[]
+  vendorPayments VendorPayment[]
+
+  @@map("journal_entries")
+}
+
+model JournalLine {
+  id             String       @id @default(uuid()) @db.Uuid
+  journalEntryId String       @map("journal_entry_id") @db.Uuid
+  accountId      String       @map("account_id") @db.Uuid
+  debit          Decimal      @default(0) @db.Decimal(15, 2)
+  credit         Decimal      @default(0) @db.Decimal(15, 2)
+  description    String?      @db.Text
+  entry          JournalEntry @relation(fields: [journalEntryId], references: [id])
+  account        Account      @relation(fields: [accountId], references: [id])
+
+  @@map("journal_lines")
+}
+
+model Invoice {
+  id             String            @id @default(uuid()) @db.Uuid
+  invoiceNumber  String            @map("invoice_number") @db.VarChar
+  customerId     String            @map("customer_id") @db.Uuid
+  issueDate      DateTime          @map("issue_date") @db.Date
+  dueDate        DateTime          @map("due_date") @db.Date
+  subtotal       Decimal           @db.Decimal(15, 2)
+  taxAmount      Decimal           @default(0) @map("tax_amount") @db.Decimal(15, 2)
+  total          Decimal           @db.Decimal(15, 2)
+  status         String            @db.VarChar
+  journalEntryId String?           @map("journal_entry_id") @db.Uuid
+  createdBy      String            @map("created_by") @db.Uuid
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamp
+  customer       Customer          @relation(fields: [customerId], references: [id])
+  journalEntry   JournalEntry?     @relation(fields: [journalEntryId], references: [id])
+  payments       CustomerPayment[]
+
+  @@map("invoices")
+}
+
+model CustomerPayment {
+  id             String        @id @default(uuid()) @db.Uuid
+  customerId     String        @map("customer_id") @db.Uuid
+  invoiceId      String?       @map("invoice_id") @db.Uuid
+  amount         Decimal       @db.Decimal(15, 2)
+  paymentMethod  String        @map("payment_method") @db.VarChar
+  bankAccountId  String?       @map("bank_account_id") @db.Uuid
+  paymentDate    DateTime      @map("payment_date") @db.Date
+  reference      String?       @db.VarChar
+  journalEntryId String?       @map("journal_entry_id") @db.Uuid
+  notes          String?       @db.Text
+  createdBy      String        @map("created_by") @db.Uuid
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamp
+  customer       Customer      @relation(fields: [customerId], references: [id])
+  invoice        Invoice?      @relation(fields: [invoiceId], references: [id])
+  bankAccount    BankAccount?  @relation(fields: [bankAccountId], references: [id])
+  journalEntry   JournalEntry? @relation(fields: [journalEntryId], references: [id])
+
+  @@map("customer_payments")
+}
+
+model VendorBill {
+  id             String          @id @default(uuid()) @db.Uuid
+  billNumber     String          @map("bill_number") @db.VarChar
+  vendorId       String          @map("vendor_id") @db.Uuid
+  issueDate      DateTime        @map("issue_date") @db.Date
+  dueDate        DateTime        @map("due_date") @db.Date
+  subtotal       Decimal         @db.Decimal(15, 2)
+  taxAmount      Decimal         @default(0) @map("tax_amount") @db.Decimal(15, 2)
+  total          Decimal         @db.Decimal(15, 2)
+  status         String          @db.VarChar
+  journalEntryId String?         @map("journal_entry_id") @db.Uuid
+  createdBy      String          @map("created_by") @db.Uuid
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamp
+  vendor         Vendor          @relation(fields: [vendorId], references: [id])
+  journalEntry   JournalEntry?   @relation(fields: [journalEntryId], references: [id])
+  vendorPayments VendorPayment[]
+
+  @@map("vendor_bills")
+}
+
+model VendorPayment {
+  id             String        @id @default(uuid()) @db.Uuid
+  vendorBillId   String        @map("vendor_bill_id") @db.Uuid
+  vendorId       String        @map("vendor_id") @db.Uuid
+  amount         Decimal       @db.Decimal(15, 2)
+  paymentMethod  String        @map("payment_method") @db.VarChar
+  bankAccountId  String?       @map("bank_account_id") @db.Uuid
+  paymentDate    DateTime      @map("payment_date") @db.Date
+  reference      String?       @db.VarChar
+  journalEntryId String?       @map("journal_entry_id") @db.Uuid
+  notes          String?       @db.Text
+  createdBy      String        @map("created_by") @db.Uuid
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamp
+  vendorBill     VendorBill    @relation(fields: [vendorBillId], references: [id])
+  vendor         Vendor        @relation(fields: [vendorId], references: [id])
+  bankAccount    BankAccount?  @relation(fields: [bankAccountId], references: [id])
+  journalEntry   JournalEntry? @relation(fields: [journalEntryId], references: [id])
+
+  @@map("vendor_payments")
+}
+
+model OcrUpload {
+  id             String   @id @default(uuid()) @db.Uuid
+  fileUrl        String   @map("file_url") @db.VarChar
+  extractedText  String?  @map("extracted_text") @db.Text
+  confidenceScore Decimal? @map("confidence_score") @db.Decimal(5, 2)
+  status         String   @db.VarChar
+  resultType     String?  @map("result_type") @db.VarChar
+  resultId       String?  @map("result_id") @db.Uuid
+  createdBy      String   @map("created_by") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamp
+
+  @@map("ocr_uploads")
+}
+
+model AiConversation {
+  id         String   @id @default(uuid()) @db.Uuid
+  sessionId  String   @map("session_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  parentId   String?  @map("parent_id") @db.Uuid
+  question   String   @db.Text
+  response   String   @db.Text
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamp
+
+  @@map("ai_conversations")
+}
+
+model Forecast {
+  id                String   @id @default(uuid()) @db.Uuid
+  forecastMonth     DateTime @map("forecast_month") @db.Date
+  predictedRevenue  Decimal  @map("predicted_revenue") @db.Decimal(15, 2)
+  predictedExpense  Decimal  @map("predicted_expense") @db.Decimal(15, 2)
+  predictedCashflow Decimal  @map("predicted_cashflow") @db.Decimal(15, 2)
+  modelVersion      String   @map("model_version") @db.VarChar
+  confidenceLow     Decimal? @map("confidence_low") @db.Decimal(15, 2)
+  confidenceHigh    Decimal? @map("confidence_high") @db.Decimal(15, 2)
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamp
+
+  @@map("forecasts")
+}
+
+model Alert {
+  id         String   @id @default(uuid()) @db.Uuid
+  type       String   @db.VarChar
+  severity   String   @db.VarChar
+  title      String   @db.VarChar
+  message    String   @db.Text
+  entityType String?  @map("entity_type") @db.VarChar
+  entityId   String?  @map("entity_id") @db.Uuid
+  isRead     Boolean  @default(false) @map("is_read")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamp
+
+  @@map("alerts")
+}
