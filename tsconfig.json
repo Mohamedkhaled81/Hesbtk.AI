@@ -32,7 +32,7 @@
     "incremental": true,
     "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo",
 
-    "types": ["node"]
+    "types": ["node", "jest"]
   },
 
   "include": ["src/**/*"],

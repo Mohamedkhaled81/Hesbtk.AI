@@ -1,102 +1,365 @@
-<<<<<<< HEAD
-# Hesbtk.AI
-=======
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Hesbtk.AI Backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+NestJS backend for a multi-tenant SMB ERP/accounting system. The database uses one shared PostgreSQL database, public shared tables for platform data, and one PostgreSQL schema per tenant organization for accounting data.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Implemented Flows
 
-## Description
+- Registration creates the user, organization, owner membership, tenant schema, and initial chart of accounts.
+- Login returns a JWT plus available tenant contexts.
+- Tenant access is enforced through `Authorization: Bearer <token>` and `x-tenant-id: <organizationId>`.
+- Owners can invite members and invitees can accept invitations.
+- Chart of accounts, customers, vendors, journal entries, customer invoices, customer payments, vendor bills, and vendor payments are implemented.
+- Invoices and bills automatically create accounting journal entries.
+- Payments automatically create cash/AR/AP journal entries and update document status.
+- Recurring entries can be created and run manually; a daily scheduler also evaluates due recurring entries.
+- Dashboard KPIs, forecasts, chatbot financial summary, alerts, and suggestions endpoints are available.
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Tech Stack
 
-## Project setup
+- NestJS 11
+- Prisma 7
+- PostgreSQL
+- JWT authentication
+- `@nestjs/schedule` for recurring jobs
+
+## Environment
+
+Create `.env` from `.env.example` and set real values:
 
 ```bash
-$ npm install
+PORT=3000
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/hesbtk
+JWT_SECRET=replace-with-a-long-random-secret
+JWT_EXPIRES_IN=1d
 ```
 
-## Compile and run the project
+## Setup
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+npm install
+npx prisma generate
+npx prisma migrate deploy
+npm run start:dev
 ```
 
-## Run tests
+The API is served under:
+
+```text
+http://localhost:3000/api/v1
+```
+
+If Prisma engine download fails on Windows certificate validation, run:
+
+```powershell
+$env:NODE_OPTIONS='--use-system-ca'
+npx prisma generate
+```
+
+## Request Conventions
+
+Protected endpoints require:
+
+```text
+Authorization: Bearer <JWT>
+x-tenant-id: <organizationId>
+Content-Type: application/json
+```
+
+Use the `organization.id` returned by registration or the `tenants[].organizationId` returned by login as `x-tenant-id`.
+
+## Sample Endpoint Tests
+
+Set helper variables after registration/login:
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+BASE=http://localhost:3000/api/v1
+TOKEN=<paste-access-token>
+TENANT=<paste-organization-id>
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+### Register and Provision Tenant
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+curl -X POST "$BASE/auth/register" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "fullName": "Mona Owner",
+    "email": "owner@example.com",
+    "password": "Password123!",
+    "organizationName": "Nile Retail",
+    "industry": "Retail",
+    "currency": "EGP"
+  }'
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+### Login
 
-## Resources
+```bash
+curl -X POST "$BASE/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "owner@example.com",
+    "password": "Password123!"
+  }'
+```
 
-Check out a few resources that may come in handy when working with NestJS:
+### Onboarding
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+```bash
+curl "$BASE/onboarding/$TENANT/next" \
+  -H "Authorization: Bearer $TOKEN"
+```
 
-## Support
+```bash
+curl -X POST "$BASE/onboarding/$TENANT/answer" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "questionKey": "business_model",
+    "answer": "Retail sales with card and cash payments"
+  }'
+```
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+### List Tenant Accounts
 
-## Stay in touch
+```bash
+curl "$BASE/tenant/accounts" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "x-tenant-id: $TENANT"
+```
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+### Add Customer and Vendor
 
-## License
+```bash
+curl -X POST "$BASE/tenant/customers" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "x-tenant-id: $TENANT" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "Acme Customer", "email": "ap@acme.test" }'
+```
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
->>>>>>> 820900d (Init)
+```bash
+curl -X POST "$BASE/tenant/vendors" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "x-tenant-id: $TENANT" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "Supply Vendor", "email": "billing@supply.test" }'
+```
+
+### Create Manual Journal Entry
+
+Use account IDs from `GET /tenant/accounts`.
+
+```bash
+curl -X POST "$BASE/tenant/journal-entries" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "x-tenant-id: $TENANT" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "date": "2026-06-05",
+    "description": "Owner capital deposit",
+    "lines": [
+      { "accountId": "<cash-account-id>", "debit": 10000, "credit": 0 },
+      { "accountId": "<equity-account-id>", "debit": 0, "credit": 10000 }
+    ]
+  }'
+```
+
+### Create Customer Invoice
+
+```bash
+curl -X POST "$BASE/tenant/invoices" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "x-tenant-id: $TENANT" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customerId": "<customer-id>",
+    "issueDate": "2026-06-05",
+    "dueDate": "2026-06-20",
+    "lines": [
+      {
+        "description": "Consulting service",
+        "quantity": 2,
+        "unitPrice": 1500,
+        "taxRate": 14
+      }
+    ]
+  }'
+```
+
+This creates:
+
+- an invoice
+- invoice lines
+- a journal entry: debit Accounts Receivable, credit Sales Revenue
+- a due-date alert
+
+### Record Customer Payment
+
+```bash
+curl -X POST "$BASE/tenant/customer-payments" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "x-tenant-id: $TENANT" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "entityId": "<invoice-id>",
+    "amount": 3420,
+    "paymentMethod": "cash",
+    "paymentDate": "2026-06-06",
+    "reference": "RCPT-001"
+  }'
+```
+
+This creates a journal entry: debit Cash and Bank, credit Accounts Receivable.
+
+### Create Vendor Bill
+
+```bash
+curl -X POST "$BASE/tenant/vendor-bills" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "x-tenant-id: $TENANT" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "vendorId": "<vendor-id>",
+    "issueDate": "2026-06-05",
+    "dueDate": "2026-06-18",
+    "lines": [
+      {
+        "description": "Office supplies",
+        "quantity": 5,
+        "unitPrice": 200,
+        "taxRate": 14
+      }
+    ]
+  }'
+```
+
+This creates a journal entry: debit Operating Expenses, credit Accounts Payable.
+
+### Record Vendor Payment
+
+```bash
+curl -X POST "$BASE/tenant/vendor-payments" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "x-tenant-id: $TENANT" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "entityId": "<vendor-bill-id>",
+    "amount": 1140,
+    "paymentMethod": "cash",
+    "paymentDate": "2026-06-07",
+    "reference": "PAY-001"
+  }'
+```
+
+### Recurring Monthly Expense
+
+```bash
+curl -X POST "$BASE/tenant/recurring-entries" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "x-tenant-id: $TENANT" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Monthly wages",
+    "frequency": "monthly",
+    "startDate": "2026-06-01",
+    "lines": [
+      { "accountId": "<expense-account-id>", "debit": 5000, "credit": 0 },
+      { "accountId": "<cash-account-id>", "debit": 0, "credit": 5000 }
+    ]
+  }'
+```
+
+Run ready recurring entries manually:
+
+```bash
+curl -X POST "$BASE/tenant/recurring-entries/run" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "x-tenant-id: $TENANT"
+```
+
+### Dashboard Insights
+
+```bash
+curl "$BASE/tenant/insights/dashboard" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "x-tenant-id: $TENANT"
+```
+
+### Forecasts
+
+```bash
+curl "$BASE/tenant/forecasts?months=12" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "x-tenant-id: $TENANT"
+```
+
+### Chatbot
+
+```bash
+curl -X POST "$BASE/tenant/chatbot" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "x-tenant-id: $TENANT" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "question": "How is my cash position?"
+  }'
+```
+
+### Alerts and Suggestions
+
+```bash
+curl -X POST "$BASE/tenant/alerts/evaluate" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "x-tenant-id: $TENANT"
+```
+
+```bash
+curl "$BASE/tenant/alerts" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "x-tenant-id: $TENANT"
+```
+
+```bash
+curl "$BASE/tenant/suggestions" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "x-tenant-id: $TENANT"
+```
+
+### Invite Team Member
+
+```bash
+curl -X POST "$BASE/org/$TENANT/invitations" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "accountant@example.com",
+    "role": "accountant"
+  }'
+```
+
+### Accept Invitation
+
+The invitee should register or login first, then call:
+
+```bash
+curl -X POST "$BASE/auth/accept-invitation" \
+  -H "Authorization: Bearer <invitee-token>" \
+  -H "Content-Type: application/json" \
+  -d '{ "token": "<invitation-token>" }'
+```
+
+### Admin Dashboard
+
+Requires a user with `global_role = admin` in the public `users` table.
+
+```bash
+curl "$BASE/admin/dashboard" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+## Notes
+
+- Runtime tenant tables are created by `TenantService.provisionTenantSchema()` when an organization registers.
+- Prisma models cover the shared public schema. Tenant schema tables are accessed with guarded raw SQL because tenant schema names are created dynamically.
+- The forecast and chatbot implementations are deterministic baseline services ready to be replaced by ML or LLM integrations later.

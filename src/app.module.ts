@@ -5,6 +5,11 @@ import { ConfigModule } from '@nestjs/config';
 import { DataBaseModule } from './database/database.module';
 import { LoggerModule } from 'nestjs-pino';
 import * as path from 'path';
+import { AuthModule } from './modules/auth/auth.module';
+import { TenantModule } from './modules/tenant/tenant.module';
+import { AccountingModule } from './modules/accounting/accounting.module';
+import { AutomationModule } from './modules/automation/automation.module';
+import { OrganizationsModule } from './modules/organizations/organizations.module';
 
 @Module({
   imports: [
@@ -54,6 +59,11 @@ import * as path from 'path';
       },
     }),
     DataBaseModule,
+    TenantModule,
+    AuthModule,
+    OrganizationsModule,
+    AccountingModule,
+    AutomationModule,
   ],
   controllers: [AppController],
   providers: [AppService],
